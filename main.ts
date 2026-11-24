@@ -11,32 +11,51 @@ const ENTRY =
 const OUT_DIR = "/output";
 const OUT_FILE = path.join(OUT_DIR, "entry.txt");
 
-function main(): void {
-  // Gate: single line, 1-200 characters, not only whitespace.
-  const chars = [...ENTRY].length;
-  if (chars < 1 || chars > 200) {
-    throw new Error(`entry is ${chars} characters, gate needs 1-200`);
+// The competition gate, as the sealed scorer states it: UTF-8 text of
+// 1 to 200 characters, not only white space, a single line.
+const GATE = { minChars: 1, maxChars: 200 } as const;
+
+function checkGate(entry: string): void {
+  const chars = [...entry].length;
+  if (chars < GATE.minChars || chars > GATE.maxChars) {
+    throw new Error(
+      `entry is ${chars} characters, gate needs ${GATE.minChars}-${GATE.maxChars}`,
+    );
   }
-  if (ENTRY.trim().length === 0) {
+  if (entry.trim().length === 0) {
     throw new Error("entry is only whitespace");
   }
-  if (ENTRY.includes("\n")) {
+  if (entry.includes("\n") || entry.includes("\r")) {
     throw new Error("entry must be a single line");
   }
+  if (entry !== entry.trim()) {
+    throw new Error("entry must not start or end with whitespace");
+  }
+}
 
-  fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(OUT_FILE, ENTRY, "utf8");
+function writeEntry(entry: string, outFile: string): void {
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+  fs.writeFileSync(outFile, entry, "utf8");
+}
 
-  // Read back and verify byte-for-byte.
-  const readBack = fs.readFileSync(OUT_FILE, "utf8");
-  if (readBack !== ENTRY) {
+function verifyRoundTrip(entry: string, outFile: string): void {
+  // Read back and verify byte-for-byte: same string and same UTF-8 length.
+  const readBack = fs.readFileSync(outFile, "utf8");
+  if (readBack !== entry) {
     throw new Error("read-back mismatch: /output/entry.txt differs from entry");
   }
-  if (Buffer.byteLength(readBack, "utf8") !== Buffer.byteLength(ENTRY, "utf8")) {
+  if (Buffer.byteLength(readBack, "utf8") !== Buffer.byteLength(entry, "utf8")) {
     throw new Error("read-back byte length mismatch");
   }
+}
 
-  console.log(`wrote ${OUT_FILE} (${chars} chars, verified byte-for-byte)`);
+function main(): void {
+  checkGate(ENTRY);
+  writeEntry(ENTRY, OUT_FILE);
+  verifyRoundTrip(ENTRY, OUT_FILE);
+  console.log(
+    `wrote ${OUT_FILE} (${[...ENTRY].length} chars, verified byte-for-byte)`,
+  );
 }
 
 main();
